@@ -40,3 +40,6 @@ lightning_logs/
 
 # Claude Code local metadata (per-user tooling state, not project code)
 .claude/
+
+# Training outputs (plots, checkpoints) — machine-specific, don't commit
+results/
