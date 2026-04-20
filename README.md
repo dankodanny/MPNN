@@ -22,6 +22,19 @@ conda activate mpnn
 pip install -r requirements.txt
 ```
 
+### GPU (optional)
+
+For training on NVIDIA GPUs, replace the CPU-only PyTorch wheel with a CUDA
+build (CUDA 12.1 is a safe choice for driver versions supporting CUDA 12.x):
+
+```bash
+pip install --upgrade --force-reinstall torch \
+  --index-url https://download.pytorch.org/whl/cu121
+```
+
+Training scripts auto-detect CUDA via `torch.cuda.is_available()`; no code
+changes needed.
+
 ## Status
 
 In progress — step 1 (setup).

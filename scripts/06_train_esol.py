@@ -2,10 +2,11 @@
 Run: python -m scripts.06_train_esol
 
 Train an MPNN on ESOL (water solubility regression).
-Takes ~1-3 minutes on CPU. Saves a loss-curve plot to results/esol_training.png.
+Auto-detects CUDA. Saves a loss-curve plot to results/esol_training.png.
 """
 import os
 import random
+import time
 
 import torch
 import torch.nn as nn
@@ -36,9 +37,22 @@ def split_items(items, train_frac=0.8, val_frac=0.1):
     )
 
 
+def pick_device() -> str:
+    if torch.cuda.is_available():
+        name = torch.cuda.get_device_name(0)
+        print(f"Using CUDA: {name}")
+        return "cuda"
+    print("Using CPU (CUDA not available)")
+    return "cpu"
+
+
 def main() -> None:
     random.seed(SEED)
     torch.manual_seed(SEED)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(SEED)
+
+    device = pick_device()
 
     print("Loading ESOL (downloads on first run)...")
     items = load_esol()
@@ -71,23 +85,31 @@ def main() -> None:
         num_steps=NUM_STEPS,
         pool="sum_mean",
         out_dim=1,
-    )
+    ).to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  model: {n_params:,} params")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     loss_fn = nn.MSELoss()
 
-    history = {"train_loss": [], "val_rmse": [], "val_mae": []}
+    history = {"train_loss": [], "val_rmse": [], "val_mae": [], "epoch_time": []}
     best_val_rmse = float("inf")
     best_epoch = 0
-    print("\nepoch | train_loss |  val_rmse |  val_mae |")
-    print("------+------------+-----------+----------+------")
+    print("\nepoch | train_loss |  val_rmse |  val_mae |   time |")
+    print("------+------------+-----------+----------+--------+------")
     for epoch in range(1, EPOCHS + 1):
+        t0 = time.perf_counter()
         train_loss = train_epoch(
-            model, train_loader, optimizer, loss_fn, y_mean=y_mean, y_std=y_std,
+            model, train_loader, optimizer, loss_fn,
+            y_mean=y_mean, y_std=y_std, device=device,
         )
-        val_rmse, val_mae = evaluate(model, val_loader, y_mean=y_mean, y_std=y_std)
+        val_rmse, val_mae = evaluate(
+            model, val_loader, y_mean=y_mean, y_std=y_std, device=device,
+        )
+        if device == "cuda":
+            torch.cuda.synchronize()
+        dt = time.perf_counter() - t0
+        history["epoch_time"].append(dt)
         history["train_loss"].append(train_loss)
         history["val_rmse"].append(val_rmse)
         history["val_mae"].append(val_mae)
@@ -97,9 +119,14 @@ def main() -> None:
             best_val_rmse = val_rmse
             best_epoch = epoch
         marker = "  <- best" if is_best else ""
-        print(f" {epoch:4d} | {train_loss:10.4f} | {val_rmse:9.4f} | {val_mae:8.4f} |{marker}")
+        print(f" {epoch:4d} | {train_loss:10.4f} | {val_rmse:9.4f} | {val_mae:8.4f} | {dt:5.2f}s |{marker}")
 
-    test_rmse, test_mae = evaluate(model, test_loader, y_mean=y_mean, y_std=y_std)
+    mean_epoch = sum(history["epoch_time"]) / len(history["epoch_time"])
+    print(f"\nmean epoch time: {mean_epoch:.2f}s on {device}")
+
+    test_rmse, test_mae = evaluate(
+        model, test_loader, y_mean=y_mean, y_std=y_std, device=device,
+    )
     print(f"\nbest val RMSE (epoch {best_epoch}): {best_val_rmse:.4f}")
     print(f"test RMSE: {test_rmse:.4f} log mol/L")
     print(f"test MAE : {test_mae:.4f} log mol/L")
@@ -114,6 +141,7 @@ def main() -> None:
         for i, batch in enumerate(test_loader_single):
             if i >= 6:
                 break
+            batch = {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in batch.items()}
             pred_norm = model(
                 batch["x"], batch["edge_index"], batch["edge_attr"],
                 batch=batch["batch"], num_graphs=batch["num_graphs"],
