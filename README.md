@@ -14,6 +14,14 @@ A learning project: build a Message Passing Neural Network from scratch in PyTor
 8. **PyTorch Geometric rewrite** — compare to the reference implementation
 9. **Extensions** — GCN / GAT / GIN / D-MPNN
 
+## Environment setup
+
+```bash
+conda create -n mpnn python=3.11 -y
+conda activate mpnn
+pip install -r requirements.txt
+```
+
 ## Status
 
 In progress — step 1 (setup).
