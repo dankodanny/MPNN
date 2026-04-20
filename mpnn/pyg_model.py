@@ -21,7 +21,12 @@ Key convention difference from our scratch code:
 """
 import torch
 import torch.nn as nn
-from torch_geometric.nn import MessagePassing, global_add_pool, global_mean_pool
+from torch_geometric.nn import (
+    MessagePassing,
+    Set2Set,
+    global_add_pool,
+    global_mean_pool,
+)
 
 
 class MPNNLayer(MessagePassing):
@@ -64,6 +69,7 @@ class MPNNPyG(nn.Module):
         num_steps: int = 3,
         out_dim: int = 1,
         pool: str = "sum_mean",
+        set2set_steps: int = 3,
     ):
         super().__init__()
         self.num_steps = num_steps
@@ -72,7 +78,21 @@ class MPNNPyG(nn.Module):
         self.atom_embed = nn.Linear(atom_feature_dim, hidden_dim)
         self.layer = MPNNLayer(hidden_dim, bond_feature_dim)  # tied weights across T steps
 
-        head_in = 2 * hidden_dim if pool == "sum_mean" else hidden_dim
+        # Set2Set (Vinyals 2016) is what the original Gilmer MPNN used as readout.
+        # It runs an LSTM for `processing_steps` iterations, attending over all
+        # atoms each step. Output dim is 2 * hidden_dim.
+        if pool == "set2set":
+            self.set2set = Set2Set(hidden_dim, processing_steps=set2set_steps)
+            head_in = 2 * hidden_dim
+        elif pool == "sum_mean":
+            self.set2set = None
+            head_in = 2 * hidden_dim
+        elif pool in ("sum", "mean"):
+            self.set2set = None
+            head_in = hidden_dim
+        else:
+            raise ValueError(f"Unknown pool: {pool!r}")
+
         self.head = nn.Sequential(
             nn.Linear(head_in, hidden_dim),
             nn.ReLU(),
@@ -90,6 +110,8 @@ class MPNNPyG(nn.Module):
             g = global_mean_pool(h, batch)
         elif self.pool == "sum_mean":
             g = torch.cat([global_add_pool(h, batch), global_mean_pool(h, batch)], dim=-1)
+        elif self.pool == "set2set":
+            g = self.set2set(h, batch)
         else:
             raise ValueError(f"Unknown pool: {self.pool!r}")
 
