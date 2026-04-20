@@ -37,3 +37,6 @@ data/
 runs/
 wandb/
 lightning_logs/
+
+# Claude Code local metadata (per-user tooling state, not project code)
+.claude/
