@@ -1,4 +1,8 @@
 # Core
+# NOTE: `pip install -r requirements.txt` installs CPU-only PyTorch. For NVIDIA
+# GPUs (CUDA 12.x), reinstall with:
+#   pip install --upgrade --force-reinstall torch \
+#     --index-url https://download.pytorch.org/whl/cu121
 torch>=2.0
 numpy>=1.24
 
