@@ -1,6 +1,9 @@
 """
 Full MPNN model: encoder -> readout -> MLP head.
 
+From-scratch reference implementation. See `mpnn/pyg_model.py` for the
+equivalent model built on PyTorch Geometric's MessagePassing base class.
+
 Inputs and outputs:
     x          : (N, atom_feature_dim)
     edge_index : (2, E)

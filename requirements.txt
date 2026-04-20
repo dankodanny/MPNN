@@ -18,5 +18,5 @@ tqdm>=4.65
 # Notebook
 jupyter>=1.0
 
-# PyTorch Geometric — added later in Step 8
-# torch-geometric>=2.5
+# PyTorch Geometric (used by scripts/07_train_esol_pyg.py and mpnn/pyg_model.py)
+torch_geometric>=2.5
